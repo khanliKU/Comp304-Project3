@@ -705,7 +705,7 @@ void rname(char *oname, char *nname) {
             e_inode = stoi(_directory_entries[j].MMM,3);	// this is the inode that has more info about this entry
             
             if (_inode_table[e_inode].TT[0]=='F')  { // entry is for a file
-                if(_directory_entries[j].fname == oname){ // we found our little filey
+                if(strcmp(_directory_entries[j].fname,oname) == 0){ // we found our little filey
                     strcpy(_directory_entries[j].fname,nname);
                     writeFS304(blocks[i], (char *)_directory_entries);
                     printf("Renamed %s as %s. \n", oname, nname);
