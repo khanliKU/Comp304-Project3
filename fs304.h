@@ -591,11 +591,11 @@ void compare(char *f1, char *f2){
     int blk1, bfr1  // block and buffer info for file1
     ,blk2, bfr2;    // block and buffer info for file2
     for (k=0; k<12; k++){
-        if (f_names[k] == f1) {
+        if (f_names[k] != NULL && strcmp(f_names[k],f1) == 0) {
             blk1 = k / 4; // k = i*4 + j where i is the block number
             bfr1 = k % 4; // k = i*4 + j where j is the buffer number
             isF1p = true;
-        }else if (f_names[k] == f2) {
+        }else if (f_names[k] != NULL && strcmp(f_names[k],f2) == 0) {
             blk2 = k / 4; // k = i*4 + j where i is the block number
             bfr2 = k % 4; // k = i*4 + j where j is the buffer number
             isF2p = true;
@@ -603,7 +603,7 @@ void compare(char *f1, char *f2){
     }
     
     if (isF1p && isF2p){
-        printf("%s has been found in block: %d, buffer: %d and %s has been found in block: %d, buffer: %d", f1, blk1, bfr1, f2, blk2, bfr2);
+        printf("%s has been found in block: %d, buffer: %d\n%s has been found in block: %d, buffer: %d\n", f1, blk1, bfr1, f2, blk2, bfr2);
         readFS304(blocks[blk1], (char *)_directory_entries);
         e_inode1 = stoi(_directory_entries[bfr1].MMM,3); // THIS IS OUR FILE1 (caps because I got excited when I figured it out)
         readFS304(blocks[blk2], (char *)_directory_entries);
@@ -661,13 +661,14 @@ void compare(char *f1, char *f2){
             readFS304(blockNumber, file2);
         }
         printf("%d many characters are different.", strcmp(file1,file2));
+        // TODO: compare # of characters
         
     } else if (!isF1p && !isF2p){
-        printf("Both %s and %s is not present in this directory.", f1, f2);
+        printf("Both %s and %s are not present in this directory.\n", f1, f2);
     } else if (!isF1p){
-        printf("%s is not present in this directory.", f1);
+        printf("%s is not present in this directory.\n", f1);
     } else if (!isF2p){
-        printf("%s is not present in this directory.", f2);
+        printf("%s is not present in this directory.\n", f2);
     }
 }
 
