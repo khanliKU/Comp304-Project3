@@ -9,6 +9,9 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <stddef.h>
 
 #define BLOCK_SUPER		0
 #define BLOCK_BLOCK_BITMAP	1
