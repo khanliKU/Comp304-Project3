@@ -31,6 +31,9 @@ int main(void){
         else if (strncmp(inputBuffer, "compare", 7) == 0){
             compare(args[1], args[2]);
         }
+        else if (strncmp(inputBuffer, "copy", 4) == 0){
+            copy(args[1], args[2]);
+        }
         else if (strncmp(inputBuffer, "rname", 5) == 0){
             rname(args[1], args[2]);
         } else {
