@@ -67,7 +67,6 @@ void printPrompt();
 void mountFS304();
 int readFS304(int, char *);
 int writeFS304(int, char *);
-bool requestBlocks(int, int *);
 
 // BITMAP ACCESS
 int getBlock();
@@ -85,6 +84,10 @@ void stats();
 void compare(char *, char *);
 void rname(char *, char *);
 void copy(char *, char *);
+
+// Helpers
+int compareBufferContents(char*, char*);
+bool requestBlocks(int, int *);
 /*############################################################################*/
 /****************************************************************************/
 /* returns the integer value of string s; -1 on error
@@ -553,11 +556,13 @@ void stats() {
  /*
  /****************************************************************************/
 
-void compare(char *f1, char *f2){
+void compare(char *f1, char *f2)
+{
+	int result = 0;
     char itype;
     int blocks[3];
     _directory_entry _directory_entries[4];
-    char *f_names[12];
+    char f_names[12][252];
     
     bool isF1p = false, isF2p = false;
     
@@ -593,7 +598,7 @@ void compare(char *f1, char *f2){
             e_inode = stoi(_directory_entries[j].MMM,3);	// this is the inode that has more info about this entry
             
             if (_inode_table[e_inode].TT[0]=='F')  { // entry is for a file
-                f_names[i*4 + j] = _directory_entries[j].fname; // add file's name to name holder array
+                strcpy(f_names[i*4 + j],_directory_entries[j].fname); // add file's name to name holder array
             }
         }
     }
@@ -611,6 +616,8 @@ void compare(char *f1, char *f2){
         }
     }
     
+printf("debug1\n");
+
     if (isF1p && isF2p){
         printf("%s has been found in block: %d, buffer: %d\n%s has been found in block: %d, buffer: %d\n", f1, blk1, bfr1, f2, blk2, bfr2);
         readFS304(blocks[blk1], (char *)_directory_entries);
@@ -627,6 +634,23 @@ void compare(char *f1, char *f2){
             }
             readFS304(blockNumber, file1);
         }
+        /* Read file2's content */
+		if(_inode_table[e_inode2].XX[0]!='0' || _inode_table[e_inode2].XX[1]!='0'){
+			// There is data on this block. Let's read it.
+			blockNumber = 0;
+			for(i=0; i<2; i++){
+			    blockNumber = blockNumber * 10 + (_inode_table[e_inode2].XX[i] - '0');
+			}
+			readFS304(blockNumber, file2);
+		}
+
+		result += compareBufferContents(file1,file2);
+
+		// reset contents
+		memset(file1,'\0',1024);
+		memset(file2,'\0',1024);
+
+		/* Read file1's content */
         if(_inode_table[e_inode1].YY[0]!='0' || _inode_table[e_inode1].YY[1]!='0'){
             // There is data on this block. Let's read it.
             blockNumber = 0;
@@ -635,6 +659,23 @@ void compare(char *f1, char *f2){
             }
             readFS304(blockNumber, file1);
         }
+		/* Read file2's content */
+		if(_inode_table[e_inode2].YY[0]!='0' || _inode_table[e_inode2].YY[1]!='0'){
+			// There is data on this block. Let's read it.
+			blockNumber = 0;
+			for(i=0; i<2; i++){
+			    blockNumber = blockNumber * 10 + (_inode_table[e_inode2].YY[i] - '0');
+			}
+			readFS304(blockNumber, file2);
+		}
+
+		result += compareBufferContents(file1,file2);
+
+		// reset contents
+		memset(file1,'\0',1024);
+		memset(file2,'\0',1024);
+
+		/* Read file1's content */
         if(_inode_table[e_inode1].ZZ[0]!='0' || _inode_table[e_inode1].ZZ[1]!='0') {
             // There is data on this block. Let's read it.
             blockNumber = 0;
@@ -643,24 +684,7 @@ void compare(char *f1, char *f2){
             }
             readFS304(blockNumber, file1);
         }
-        
         /* Read file2's content */
-        if(_inode_table[e_inode2].XX[0]!='0' || _inode_table[e_inode2].XX[1]!='0'){
-            // There is data on this block. Let's read it.
-            blockNumber = 0;
-            for(i=0; i<2; i++){
-                blockNumber = blockNumber * 10 + (_inode_table[e_inode2].XX[i] - '0');
-            }
-            readFS304(blockNumber, file2);
-        }
-        if(_inode_table[e_inode2].YY[0]!='0' || _inode_table[e_inode2].YY[1]!='0'){
-            // There is data on this block. Let's read it.
-            blockNumber = 0;
-            for(i=0; i<2; i++){
-                blockNumber = blockNumber * 10 + (_inode_table[e_inode2].YY[i] - '0');
-            }
-            readFS304(blockNumber, file2);
-        }
         if(_inode_table[e_inode2].ZZ[0]!='0' || _inode_table[e_inode2].ZZ[1]!='0') {
             // There is data on this block. Let's read it.
             blockNumber = 0;
@@ -669,7 +693,10 @@ void compare(char *f1, char *f2){
             }
             readFS304(blockNumber, file2);
         }
-        printf("%d many characters are different.", strcmp(file1,file2));
+
+		result += compareBufferContents(file1,file2);
+
+        printf("%d many characters are different.\n", result);
         // TODO: compare # of characters
         
     } else if (!isF1p && !isF2p){
@@ -984,4 +1011,38 @@ bool requestBlocks(int size, int *block)
 		printf("returning false\n");
 		return false;
 	}
+}
+
+int compareBufferContents(char* buf1, char* buf2)
+{
+	int length1, length2;
+	int result = 0;
+
+	length1 = strlen(buf1);
+	length2 = strlen(buf2);
+
+	if (length1 < length2)
+	{
+		for (int i = 0; i < length1; ++i)
+		{
+			if (buf1[i] != buf2[i])
+			{
+				result++;
+			}
+		}
+		result += length2 - length1;
+	}
+	else
+	{
+		for (int i = 0; i < length2; ++i)
+		{
+			if (buf1[i] != buf2[i])
+			{
+				result++;
+			}
+		}
+		result += length1 - length2;
+	}
+
+	return result;
 }
