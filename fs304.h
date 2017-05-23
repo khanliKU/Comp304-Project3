@@ -1,7 +1,7 @@
 /*******************************************************************/
 /* COMP 304 Project 3 : OS File System 304 (FS304)
  /* Spring 2017
- /* Koç University
+ /* KoÃ§ University
  /*
  /*******************************************************************/
 
@@ -751,6 +751,9 @@ void rname(char *oname, char *nname) {
     
 	int newDirectoryEntryBlockNo = -1;
 	int newDirectoryEntryBlockOffset = -1;
+	int inodeTableEntryField = -1;
+
+	bool sourceExists = false;
 
     // read inode entry for current directory
     // in FS304, an inode can point to three blocks at the most
@@ -767,41 +770,71 @@ void rname(char *oname, char *nname) {
     
 	int blk, bffr = -1;  // block and buffer info fors file
 
+	if(strcmp(_directory_entries[j].fname,f2) == 0)
+	{
+		printf("%s already exists\n", f2);
+		return;
+	}
+
+	for (i=0; i<3; i++)
+	{
+		if (blocks[i]==0) continue;
+		readFS304(blocks[i],(char *)_directory_entries);	// lets read a directory entry; notice the cast
+
+		// so, we got four possible directory entries now
+		for (j=0; j<4; j++)
+		{
+//        	printf("Dir entry F: %s\n", (_directory_entries[j].F  == '0' ? "unused":"used"));
+			if (_directory_entries[j].F=='0') continue;
+
+			
+			// this is the inode that has more info about this entry
+			// MMM refers to inode table index
+
+			if (strcmp(_directory_entries[j].fname, f2) == 0)
+			{
+				printf("File already exists: %s\n", f1);
+				return;
+			}
+			else if (strcmp(_directory_entries[j].fname, f1) == 0)
+			{
+				e_inode = stoi(_directory_entries[j].MMM,3);
+				if (_inode_table[e_inode].TT[0]=='D')
+				{
+					printf("Copy failed. Entry to copy is a DIR: %s\n", f1);
+					return;
+				}
+				sourceExists = true;
+			}
+		}
+	}
+	
+	if (!sourceExists)
+	{
+		printf("File not found: %s\n", f1);
+		return;
+	}
+
     // lets traverse the directory entries in all three blocks
     for (i=0; i<3; i++) {
         if (blocks[i]==0)
-            {
-            	if (newDirectoryEntryBlockNo == -1 && newDirectoryEntryBlockOffset == -1)
-            	{
-            		bool success = requestBlocks(1,&newDirectoryEntryBlockNo);
+        {
+        	if (newDirectoryEntryBlockNo == -1 && newDirectoryEntryBlockOffset == -1)
+        	{
+        		bool success = requestBlocks(1,&newDirectoryEntryBlockNo);
 //            		printf("New directory Entry Block No %d %d\n", newDirectoryEntryBlockNo, success);
-            		if (i == 0)
-            		{
-            			itos(_inode_table[CD_INODE_ENTRY].XX,newDirectoryEntryBlockNo,2);
-            		}
-            		else if (i == 1)
-            		{
-            			itos(_inode_table[CD_INODE_ENTRY].YY,newDirectoryEntryBlockNo,2);
-            		}
-            		else if (i == 2)
-            		{
-            			itos(_inode_table[CD_INODE_ENTRY].ZZ,newDirectoryEntryBlockNo,2);
-            		}
-	
-            		if (!success);
-            		{
-            			printf("(DIR BLOCK) There is not enough space on the disk to copy this file: %s\n", f1);
-            			return;
-            		}
-
-
-            		writeFS304(3,(char*)_inode_table);
-
-            		newDirectoryEntryBlockOffset = 0;
+        		
+        		inodeTableEntryField = i;
+        		if (!success)
+        		{
+        			printf("(DIR BLOCK) There is not enough space on the disk to copy this file: %s\n", f1);
+        			return;
+        		}
+        		newDirectoryEntryBlockOffset = 0;
 //            		printf("finding new entry\n");
-            	}
-            	continue;	// 0 means pointing at nothing
         	}
+        	continue;	// 0 means pointing at nothing
+    	}
         
         readFS304(blocks[i],(char *)_directory_entries);	// lets read a directory entry; notice the cast
         
@@ -813,6 +846,7 @@ void rname(char *oname, char *nname) {
             {
             	if (newDirectoryEntryBlockNo == -1 && newDirectoryEntryBlockOffset == -1)
             	{
+            		inodeTableEntryField = i;
             		newDirectoryEntryBlockNo = blocks[i];
             		newDirectoryEntryBlockOffset = j;
  //           		printf("finding new entry\n");
@@ -882,11 +916,6 @@ void rname(char *oname, char *nname) {
 				    printf("\n");
 */
                 }
-                if(strcmp(_directory_entries[j].fname,f2) == 0)
-                {
-                	printf("%s already exists\n", f2);
-                	return;
-                }
             }
         }
     }
@@ -896,6 +925,19 @@ void rname(char *oname, char *nname) {
 
 	if (newDirectoryEntryBlockNo != -1 && newDirectoryEntryBlockOffset != -1)
 	{
+		if (inodeTableEntryField == 0)
+		{
+			itos(_inode_table[CD_INODE_ENTRY].XX,newDirectoryEntryBlockNo,2);
+		}
+		else if (inodeTableEntryField == 1)
+		{
+			itos(_inode_table[CD_INODE_ENTRY].YY,newDirectoryEntryBlockNo,2);
+		}
+		else if (inodeTableEntryField == 2)
+		{
+			itos(_inode_table[CD_INODE_ENTRY].ZZ,newDirectoryEntryBlockNo,2);
+		}
+		writeFS304(3,(char*)_inode_table);
 		printf("Block: %d Offset: %d\n", newDirectoryEntryBlockNo, newDirectoryEntryBlockOffset);
 		readFS304(newDirectoryEntryBlockNo,(char *)_directory_entries);
 		_directory_entries[newDirectoryEntryBlockOffset].F = '1';
@@ -905,6 +947,13 @@ void rname(char *oname, char *nname) {
 	}
     else
     {
+    	// return resources if there is not enough space in current DIR
+    	returnInode(newInode);
+    	returnBlock(newDirectoryEntryBlockNo);
+    	for (int i = 0; i < toCopy.size; ++i)
+    	{
+    		returnBlock(newBlockIndices[i]);
+    	}
     	printf("There are already 12 files in this dir\n");
     }
 
