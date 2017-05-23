@@ -749,6 +749,9 @@ void rname(char *oname, char *nname) {
     int newBlockIndices[3] = {0,0,0};
     int newInode;
     
+	int newDirectoryEntryBlockNo = -1;
+	int newDirectoryEntryBlockOffset = -1;
+
     // read inode entry for current directory
     // in FS304, an inode can point to three blocks at the most
     itype = _inode_table[CD_INODE_ENTRY].TT[0];
@@ -766,13 +769,56 @@ void rname(char *oname, char *nname) {
 
     // lets traverse the directory entries in all three blocks
     for (i=0; i<3; i++) {
-        if (blocks[i]==0) continue;	// 0 means pointing at nothing
+        if (blocks[i]==0)
+            {
+            	if (newDirectoryEntryBlockNo == -1 && newDirectoryEntryBlockOffset == -1)
+            	{
+            		bool success = requestBlocks(1,&newDirectoryEntryBlockNo);
+//            		printf("New directory Entry Block No %d %d\n", newDirectoryEntryBlockNo, success);
+            		if (i == 0)
+            		{
+            			itos(_inode_table[CD_INODE_ENTRY].XX,newDirectoryEntryBlockNo,2);
+            		}
+            		else if (i == 1)
+            		{
+            			itos(_inode_table[CD_INODE_ENTRY].YY,newDirectoryEntryBlockNo,2);
+            		}
+            		else if (i == 2)
+            		{
+            			itos(_inode_table[CD_INODE_ENTRY].ZZ,newDirectoryEntryBlockNo,2);
+            		}
+	
+            		if (!success);
+            		{
+            			printf("(DIR BLOCK) There is not enough space on the disk to copy this file: %s\n", f1);
+            			return;
+            		}
+
+
+            		writeFS304(3,(char*)_inode_table);
+
+            		newDirectoryEntryBlockOffset = 0;
+//            		printf("finding new entry\n");
+            	}
+            	continue;	// 0 means pointing at nothing
+        	}
         
         readFS304(blocks[i],(char *)_directory_entries);	// lets read a directory entry; notice the cast
         
         // so, we got four possible directory entries now
-        for (j=0; j<4; j++) {
-            if (_directory_entries[j].F=='0') continue;	// means unused entry
+        for (j=0; j<4; j++)
+        {
+//        	printf("Dir entry F: %s\n", (_directory_entries[j].F  == '0' ? "unused":"used"));
+            if (_directory_entries[j].F=='0')
+            {
+            	if (newDirectoryEntryBlockNo == -1 && newDirectoryEntryBlockOffset == -1)
+            	{
+            		newDirectoryEntryBlockNo = blocks[i];
+            		newDirectoryEntryBlockOffset = j;
+ //           		printf("finding new entry\n");
+            	}
+            	continue;	// means unused entry
+        	}
             
             e_inode = stoi(_directory_entries[j].MMM,3);
             // this is the inode that has more info about this entry
@@ -783,11 +829,12 @@ void rname(char *oname, char *nname) {
                 total_files++;
                 if(strcmp(_directory_entries[j].fname,f1) == 0)
                 {
+                	printf("File found in Block: %d Offset: %d\n", i, j);
 				    dataBlocks[0] = stoi(_inode_table[e_inode].XX,2);
 				    dataBlocks[1] = stoi(_inode_table[e_inode].YY,2);
 				    dataBlocks[2] = stoi(_inode_table[e_inode].ZZ,2);
 
-				    printf("%d %d %d\n", dataBlocks[0], dataBlocks[1], dataBlocks[2]);
+//				    printf("%d %d %d\n", dataBlocks[0], dataBlocks[1], dataBlocks[2]);
 
 				    for (int k = 0; k < 3; ++k)
 				    {
@@ -799,12 +846,12 @@ void rname(char *oname, char *nname) {
 				    	}
 				    }
 
-				    printf("SIZE: %d\n", toCopy.size);
+//				    printf("SIZE: %d\n", toCopy.size);
 
 				    newInode = getInode();
 				    if (newInode < 0)
 				    {
-				    	printf("There is not enough space on the disk to copy this file: %s\n", f1);
+				    	printf("(INODE) There is not enough space on the disk to copy this file: %s\n", f1);
 				    	return;
 				    }
 
@@ -812,7 +859,7 @@ void rname(char *oname, char *nname) {
 
 				    if (!enoughSpace) // If there is not enough space on the disk
 				    {
-				    	printf("There is not enough space on the disk to copy this file: %s\n", f1);
+				    	printf("(BLOCK) There is not enough space on the disk to copy this file: %s\n", f1);
 				    	returnInode(newInode);
 				    	return;
 				    }
@@ -827,15 +874,13 @@ void rname(char *oname, char *nname) {
 				    	itos(_inode_table[newInode].YY, newBlockIndices[1], 2);
 				    	itos(_inode_table[newInode].ZZ, newBlockIndices[2], 2);
 				    }
-				    
+/*				    
 				    for (int k = 0; k < toCopy.size; k++)
 				    {
 				    	printf("%d", newBlockIndices[k]);
 				    }
 				    printf("\n");
-
-                	blk = i;
-            		bffr = j;
+*/
                 }
                 if(strcmp(_directory_entries[j].fname,f2) == 0)
                 {
@@ -849,16 +894,15 @@ void rname(char *oname, char *nname) {
     // TODO: read every block in file not like in compare
     // TODO: 
 
-	if (blk < 0 || bffr < 0)
-    {
-    	printf("file not found: %s\n",f1);
-    	return;
-    }
-
-    if (total_files < 12)
-    {
-//		printf("%d %d\n", blk, bffr);
-    }
+	if (newDirectoryEntryBlockNo != -1 && newDirectoryEntryBlockOffset != -1)
+	{
+		printf("Block: %d Offset: %d\n", newDirectoryEntryBlockNo, newDirectoryEntryBlockOffset);
+		readFS304(newDirectoryEntryBlockNo,(char *)_directory_entries);
+		_directory_entries[newDirectoryEntryBlockOffset].F = '1';
+		strcpy(_directory_entries[newDirectoryEntryBlockOffset].fname, f2);
+		itos(_directory_entries[newDirectoryEntryBlockOffset].MMM, newInode, 3);
+		writeFS304(newDirectoryEntryBlockNo,(char *)_directory_entries);
+	}
     else
     {
     	printf("There are already 12 files in this dir\n");
@@ -868,7 +912,7 @@ void rname(char *oname, char *nname) {
  
 bool requestBlocks(int size, int *block)
 {
-	printf("size: %d block: %d\n", size, block);
+//	printf("size: %d block: %d\n", size, block);
 	if (size == 0)
 	{
 		return true;
@@ -877,16 +921,18 @@ bool requestBlocks(int size, int *block)
 	{
 		*block = getBlock();
 //		*block = size;
-		if (block > 0)
+		if (*block > 0)
 		{
 			bool next = requestBlocks(size-1,++block);
 			if (!next)
 			{
 				printf("block returned\n");
 				returnBlock(*block);
+				printf("returning block\n");
 			}
 			return next;
 		}
+		printf("returning false\n");
 		return false;
 	}
 }
