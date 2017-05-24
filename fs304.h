@@ -710,8 +710,8 @@ printf("debug1\n");
 
 /****************************************************************************/
 /* renames file or dictionary
- /*
- /****************************************************************************/
+/*
+/****************************************************************************/
 void rname(char *oname, char *nname) {
     int blocks[3];
     _directory_entry _directory_entries[4];
@@ -737,9 +737,16 @@ void rname(char *oname, char *nname) {
             if (_directory_entries[j].F=='0') continue;	// means unused entry
             
             e_inode = stoi(_directory_entries[j].MMM,3);	// this is the inode that has more info about this entry
-            
 
             // TODO: implement rename for directories
+            if (_inode_table[e_inode].TT[0]=='D')  { // entry is for a file
+                if (strncmp(dname,_directory_entries[j].fname, 252) == 0) {	// and it is the one we are looking for
+                    strcpy(_directory_entries[j].fname,nname);
+                    writeFS304(blocks[i], (char *)_directory_entries);
+                    printf("Renamed %s as %s. \n", oname, nname);
+                }
+            }
+
 
             if (_inode_table[e_inode].TT[0]=='F')  { // entry is for a file
                 if(strcmp(_directory_entries[j].fname,oname) == 0){ // we found our little filey
@@ -753,9 +760,9 @@ void rname(char *oname, char *nname) {
 }
 
 /**************************************************************************
- /* copies file1's content into file2
- /*
- **************************************************************************/
+/* copies file1's content into file2
+/*
+**************************************************************************/
 
  void copy(char *f1, char *f2)
  {
