@@ -37,7 +37,13 @@ int main(void){
         else if (strncmp(inputBuffer, "rname", 5) == 0){
             rname(args[1], args[2]);
         } else {
-            printf("Unknown command!\n");
+            if (args != NULL)
+            {
+                if (!open(args[0]))
+                {
+                    printf("File not found: %s\n", args[0]);
+                }
+            }
         }
     }
     return 0;

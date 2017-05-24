@@ -740,7 +740,7 @@ void rname(char *oname, char *nname) {
 
             // TODO: implement rename for directories
             if (_inode_table[e_inode].TT[0]=='D')  { // entry is for a file
-                if (strncmp(dname,_directory_entries[j].fname, 252) == 0) {	// and it is the one we are looking for
+                if (strncmp(oname,_directory_entries[j].fname, 252) == 0) {	// and it is the one we are looking for
                     strcpy(_directory_entries[j].fname,nname);
                     writeFS304(blocks[i], (char *)_directory_entries);
                     printf("Renamed %s as %s. \n", oname, nname);
@@ -892,12 +892,13 @@ void rname(char *oname, char *nname) {
             // this is the inode that has more info about this entry
             // MMM refers to inode table index
             
-            if (_inode_table[e_inode].TT[0]=='F') { // entry is for a file
+            if (_inode_table[e_inode].TT[0]=='F')
+            { // entry is for a file
 //                printf("%.252s\t",_directory_entries[j].fname);
                 total_files++;
                 if(strcmp(_directory_entries[j].fname,f1) == 0)
                 {
-                	printf("File found in Block: %d Offset: %d\n", i, j);
+//	            	printf("File found in Block: %d Offset: %d\n", i, j);
 				    dataBlocks[0] = stoi(_inode_table[e_inode].XX,2);
 				    dataBlocks[1] = stoi(_inode_table[e_inode].YY,2);
 				    dataBlocks[2] = stoi(_inode_table[e_inode].ZZ,2);
@@ -909,7 +910,7 @@ void rname(char *oname, char *nname) {
 				    	if (dataBlocks[k] > 0)
 				    	{
 						    readFS304(dataBlocks[k],toCopy.blocks[k]);
-						    printf("Block %d:\n%s\n", toCopy.size, toCopy.blocks[k]);
+//						    printf("Block %d:\n%s\n", toCopy.size, toCopy.blocks[k]);
 						    toCopy.size++;
 				    	}
 				    }
@@ -951,11 +952,13 @@ void rname(char *oname, char *nname) {
 */
                 }
             }
+            else
+            {
+            	printf("Can not copy DIR: %s\n", f1);
+            	return;
+            }
         }
     }
-
-    // TODO: read every block in file not like in compare
-    // TODO: 
 
 	if (newDirectoryEntryBlockNo != -1 && newDirectoryEntryBlockOffset != -1)
 	{
@@ -972,7 +975,7 @@ void rname(char *oname, char *nname) {
 			itos(_inode_table[CD_INODE_ENTRY].ZZ,newDirectoryEntryBlockNo,2);
 		}
 		writeFS304(3,(char*)_inode_table);
-		printf("Block: %d Offset: %d\n", newDirectoryEntryBlockNo, newDirectoryEntryBlockOffset);
+//		printf("Block: %d Offset: %d\n", newDirectoryEntryBlockNo, newDirectoryEntryBlockOffset);
 		readFS304(newDirectoryEntryBlockNo,(char *)_directory_entries);
 		_directory_entries[newDirectoryEntryBlockOffset].F = '1';
 		strcpy(_directory_entries[newDirectoryEntryBlockOffset].fname, f2);
@@ -990,9 +993,71 @@ void rname(char *oname, char *nname) {
     	}
     	printf("There are already 12 files in this dir\n");
     }
+}
 
- }
- 
+bool open(char* fname)
+{
+	int blocks[3];
+    _directory_entry _directory_entries[4];
+    
+    int i,j;
+    int e_inode;
+    
+    char content[1024];
+    int dataBlocks[3] = {0,0,0};
+    // read inode entry for current directory
+    // in KUFS, an inode can point to three blocks at the most
+    blocks[0] = stoi(_inode_table[CD_INODE_ENTRY].XX,2);
+    blocks[1] = stoi(_inode_table[CD_INODE_ENTRY].YY,2);
+    blocks[2] = stoi(_inode_table[CD_INODE_ENTRY].ZZ,2);
+    
+    // lets traverse the directory entries in all three blocks
+    for (i=0; i<3; i++) {
+        if (blocks[i]==0) continue;	// 0 means pointing at nothing
+        
+        readFS304(blocks[i],(char *)_directory_entries);	// lets read a directory entry; notice the cast
+        
+        // so, we got four possible directory entries now
+        for (j=0; j<4; j++) {
+            if (_directory_entries[j].F=='0') continue;	// means unused entry
+            
+            e_inode = stoi(_directory_entries[j].MMM,3);	// this is the inode that has more info about this entry
+
+            // TODO: implement rename for directories
+            if (_inode_table[e_inode].TT[0]=='D')  { // entry is for a file
+                if (strncmp(fname,_directory_entries[j].fname, 252) == 0)
+                {	// and it is the one we are looking for
+                    printf("%s is a DIR\n", fname);
+                    return true;
+                }
+            }
+
+
+            if (_inode_table[e_inode].TT[0]=='F')  { // entry is for a file
+                if(strcmp(_directory_entries[j].fname,fname) == 0)
+                { // we found our little filey
+                	dataBlocks[0] = stoi(_inode_table[e_inode].XX,2);
+				    dataBlocks[1] = stoi(_inode_table[e_inode].YY,2);
+				    dataBlocks[2] = stoi(_inode_table[e_inode].ZZ,2);
+
+				    printf("%s:\n", fname);
+
+				    for (int k = 0; k < 3; ++k)
+				    {
+				    	if (dataBlocks[k] > 0)
+				    	{
+						    readFS304(dataBlocks[k], content);
+						    printf("%s\n", content);
+				    	}
+				    }
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 bool requestBlocks(int size, int *block)
 {
 //	printf("size: %d block: %d\n", size, block);
@@ -1009,9 +1074,9 @@ bool requestBlocks(int size, int *block)
 			bool next = requestBlocks(size-1,++block);
 			if (!next)
 			{
-				printf("block returned\n");
+//				printf("block returned\n");
 				returnBlock(*block);
-				printf("returning block\n");
+//				printf("returning block\n");
 			}
 			return next;
 		}
