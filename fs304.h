@@ -975,8 +975,11 @@ void rname(char *oname, char *nname) {
             }
             else
             {
-            	printf("Can not copy DIR: %s\n", f1);
-            	return;
+            	if(strcmp(_directory_entries[j].fname,f1) == 0)
+                {
+            		printf("Can not copy DIR: %s\n", f1);
+            		return;
+            	}
             }
         }
     }
